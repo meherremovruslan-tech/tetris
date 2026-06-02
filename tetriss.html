@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tetris</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#0a0a12;font-family:monospace;touch-action:none}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh}
+
+#app{display:flex;gap:20px;align-items:flex-start;justify-content:center;padding:16px}
+#board-wrap{position:relative;flex-shrink:0}
+canvas#board{display:block;border:1.5px solid rgba(255,255,255,0.15);border-radius:8px;background:#0a0a12}
+#side{display:flex;flex-direction:column;gap:12px;min-width:120px}
+.panel{background:rgba(255,255,255,0.05);border:0.5px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 14px}
+.panel-label{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:rgba(255,255,255,0.35);margin-bottom:4px}
+.panel-value{font-size:20px;font-weight:500;color:#fff}
+canvas#next-canvas{display:block;background:#0a0a12;border-radius:8px;border:0.5px solid rgba(255,255,255,0.1);margin-top:6px}
+#btn-start{width:100%;padding:10px;font-size:13px;font-weight:500;cursor:pointer;border-radius:8px;border:0.5px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.07);color:#fff;font-family:monospace;letter-spacing:0.04em;transition:background 0.15s}
+#btn-start:hover{background:rgba(255,255,255,0.13)}
+#controls-info{font-size:11px;color:rgba(255,255,255,0.3);line-height:1.9}
+#controls-info span{display:inline-block;background:rgba(255,255,255,0.08);border:0.5px solid rgba(255,255,255,0.15);border-radius:4px;padding:1px 5px;font-size:10px;margin-right:3px;color:rgba(255,255,255,0.5)}
+
+#overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,18,0.88);border-radius:8px;gap:12px}
+#overlay h2{font-size:24px;font-weight:500;color:#fff;letter-spacing:0.12em}
+#overlay p{font-size:12px;color:rgba(255,255,255,0.45);text-align:center;padding:0 16px}
+#overlay-btn{padding:10px 28px;font-size:14px;font-weight:500;cursor:pointer;border-radius:8px;border:0.5px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;font-family:monospace;letter-spacing:0.04em}
+#overlay-btn:active{background:rgba(255,255,255,0.2)}
+
+#touch-controls{display:none;width:100%;padding:10px 16px 24px;gap:10px;flex-direction:column;align-items:center}
+.touch-row{display:flex;gap:10px;justify-content:center}
+.t-btn{height:68px;border-radius:16px;border:1.5px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.08);color:#fff;font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;-webkit-user-select:none;transition:background 0.08s;flex:1;max-width:90px}
+.t-btn:active{background:rgba(255,255,255,0.22)}
+.t-btn.wide{max-width:none;font-size:15px;gap:6px;letter-spacing:0.03em}
+.t-btn-label{font-size:11px;opacity:0.5;margin-top:2px}
+
+@media(max-width:600px){
+  body{justify-content:flex-start;padding-top:6px}
+  #app{flex-direction:column;align-items:center;gap:6px;padding:6px 8px}
+  #side{flex-direction:row;flex-wrap:wrap;min-width:unset;width:100%;gap:6px;justify-content:center}
+  .panel{padding:7px 12px;min-width:72px;text-align:center}
+  .panel-value{font-size:17px}
+  #controls-info{display:none}
+  #touch-controls{display:flex}
+  #btn-start{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="board-wrap">
+    <canvas id="board"></canvas>
+    <div id="overlay">
+      <h2>TETRIS</h2>
+      <p id="overlay-msg">Oynamaq üçün başla düyməsinə bas</p>
+      <button id="overlay-btn" onclick="startGame()">▶ Başla</button>
+    </div>
+  </div>
+  <div id="side">
+    <div class="panel"><div class="panel-label">Xal</div><div class="panel-value" id="score">0</div></div>
+    <div class="panel"><div class="panel-label">Səviyyə</div><div class="panel-value" id="level">1</div></div>
+    <div class="panel"><div class="panel-label">Xəttlər</div><div class="panel-value" id="lines">0</div></div>
+    <div class="panel"><div class="panel-label">Növbəti</div><canvas id="next-canvas" width="80" height="64"></canvas></div>
+    <button id="btn-start" onclick="startGame()">▶ Başla</button>
+    <div class="panel" id="controls-info">
+      <span>← →</span> Hərəkət<br>
+      <span>↑</span> Döndər<br>
+      <span>↓</span> Sürət<br>
+      <span>Space</span> Düş<br>
+      <span>R</span> Restart
+    </div>
+  </div>
+</div>
+
+<div id="touch-controls">
+  <div class="touch-row" style="width:100%;max-width:320px">
+    <div class="t-btn" id="btn-left">←</div>
+    <div class="t-btn" id="btn-rotate">↻</div>
+    <div class="t-btn" id="btn-right">→</div>
+  </div>
+  <div class="touch-row" style="width:100%;max-width:320px">
+    <div class="t-btn wide" id="btn-down" style="flex:1">↓ &nbsp;Sürət</div>
+    <div class="t-btn wide" id="btn-drop" style="flex:1">⬇ &nbsp;Düş</div>
+  </div>
+</div>
+
+<script>
+const COLS=10, ROWS=20;
+let SZ=24;
+
+function calcSize(){
+  const isMobile=window.innerWidth<=600;
+  if(isMobile){
+    const maxW=Math.floor((window.innerWidth-20)/COLS);
+    const touchH=170, statsH=56, topPad=18;
+    const maxH=Math.floor((window.innerHeight-touchH-statsH-topPad)/ROWS);
+    SZ=Math.min(maxW,maxH,30);
+  } else { SZ=26; }
+  canvas.width=COLS*SZ;
+  canvas.height=ROWS*SZ;
+}
+
+const canvas=document.getElementById('board');
+const ctx=canvas.getContext('2d');
+const ncanvas=document.getElementById('next-canvas');
+const nctx=ncanvas.getContext('2d');
+const overlay=document.getElementById('overlay');
+
+const COLORS=[null,'#00d4ff','#ffd000','#b04dff','#ff6b35','#4d79ff','#00e676','#ff4d6d'];
+const PIECES=[
+  null,
+  [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  [[1,1],[1,1]],
+  [[0,1,0],[1,1,1],[0,0,0]],
+  [[0,0,1],[1,1,1],[0,0,0]],
+  [[1,0,0],[1,1,1],[0,0,0]],
+  [[0,1,1],[1,1,0],[0,0,0]],
+  [[1,1,0],[0,1,1],[0,0,0]],
+];
+
+let board,piece,pieceX,pieceY,pieceType,nextType;
+let score=0,level=1,lines=0;
+let running=false,gameOver=false;
+let dropInterval=1000,lastTime=0,dropCounter=0,animId;
+
+function createBoard(){ return Array.from({length:ROWS},()=>Array(COLS).fill(0)); }
+function randType(){ return Math.floor(Math.random()*7)+1; }
+
+function spawnPiece(){
+  pieceType=nextType||randType();
+  nextType=randType();
+  piece=PIECES[pieceType].map(r=>[...r]);
+  pieceX=Math.floor((COLS-piece[0].length)/2);
+  pieceY=0;
+  if(collides()) endGame();
+  drawNext();
+}
+
+function collides(px=pieceX,py=pieceY,p=piece){
+  for(let r=0;r<p.length;r++)
+    for(let c=0;c<p[r].length;c++)
+      if(p[r][c]){
+        const nx=px+c,ny=py+r;
+        if(nx<0||nx>=COLS||ny>=ROWS) return true;
+        if(ny>=0&&board[ny][nx]) return true;
+      }
+  return false;
+}
+
+function rotate(p){
+  const rows=p.length,cols=p[0].length;
+  const out=Array.from({length:cols},()=>Array(rows).fill(0));
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) out[c][rows-1-r]=p[r][c];
+  return out;
+}
+
+function lock(){
+  for(let r=0;r<piece.length;r++)
+    for(let c=0;c<piece[r].length;c++)
+      if(piece[r][c]&&pieceY+r>=0) board[pieceY+r][pieceX+c]=pieceType;
+  clearLines(); spawnPiece();
+}
+
+function clearLines(){
+  let cleared=0;
+  for(let r=ROWS-1;r>=0;r--){
+    if(board[r].every(v=>v)){ board.splice(r,1); board.unshift(Array(COLS).fill(0)); cleared++; r++; }
+  }
+  if(cleared){
+    const pts=[0,100,300,500,800];
+    score+=(pts[cleared]||800)*level;
+    lines+=cleared;
+    level=Math.floor(lines/10)+1;
+    document.getElementById('score').textContent=score;
+    document.getElementById('level').textContent=level;
+    document.getElementById('lines').textContent=lines;
+    dropInterval=Math.max(100,1000-(level-1)*80);
+  }
+}
+
+function ghostY(){ let gy=pieceY; while(!collides(pieceX,gy+1,piece)) gy++; return gy; }
+
+function drawCell(c2d,x,y,color,size=SZ){
+  c2d.fillStyle=color;
+  c2d.fillRect(x*size+1,y*size+1,size-2,size-2);
+  c2d.fillStyle='rgba(255,255,255,0.18)';
+  c2d.fillRect(x*size+1,y*size+1,size-2,4);
+  c2d.fillStyle='rgba(0,0,0,0.25)';
+  c2d.fillRect(x*size+1,y*size+size-5,size-2,4);
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#0a0a12'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=0.5;
+  for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(c*SZ,0);ctx.lineTo(c*SZ,ROWS*SZ);ctx.stroke();}
+  for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*SZ);ctx.lineTo(COLS*SZ,r*SZ);ctx.stroke();}
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(board[r][c]) drawCell(ctx,c,r,COLORS[board[r][c]]);
+  if(!gameOver&&piece){
+    const gy=ghostY();
+    for(let r=0;r<piece.length;r++) for(let c=0;c<piece[r].length;c++)
+      if(piece[r][c]){ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect((pieceX+c)*SZ+1,(gy+r)*SZ+1,SZ-2,SZ-2);}
+    for(let r=0;r<piece.length;r++) for(let c=0;c<piece[r].length;c++)
+      if(piece[r][c]) drawCell(ctx,pieceX+c,pieceY+r,COLORS[pieceType]);
+  }
+}
+
+function drawNext(){
+  const ns=16;
+  nctx.fillStyle='#0a0a12'; nctx.fillRect(0,0,ncanvas.width,ncanvas.height);
+  const p=PIECES[nextType];
+  const offX=Math.floor((5-p[0].length)/2);
+  const offY=Math.floor((4-p.length)/2);
+  for(let r=0;r<p.length;r++) for(let c=0;c<p[r].length;c++)
+    if(p[r][c]){
+      nctx.fillStyle=COLORS[nextType];
+      nctx.fillRect((offX+c)*ns+1,(offY+r)*ns+1,ns-2,ns-2);
+      nctx.fillStyle='rgba(255,255,255,0.18)';
+      nctx.fillRect((offX+c)*ns+1,(offY+r)*ns+1,ns-2,3);
+    }
+}
+
+function update(time=0){
+  if(!running) return;
+  const dt=time-lastTime; lastTime=time;
+  dropCounter+=dt;
+  if(dropCounter>dropInterval){ dropCounter=0; if(!collides(pieceX,pieceY+1)) pieceY++; else lock(); }
+  draw(); animId=requestAnimationFrame(update);
+}
+
+function endGame(){
+  running=false; gameOver=true; cancelAnimationFrame(animId); draw();
+  document.getElementById('overlay-msg').textContent='Xal: '+score;
+  overlay.querySelector('h2').textContent='OYUN BİTDİ';
+  document.getElementById('overlay-btn').textContent='↺ Yenidən';
+  overlay.style.display='flex';
+}
+
+function startGame(){
+  calcSize();
+  board=createBoard(); score=0; level=1; lines=0; dropCounter=0; dropInterval=1000;
+  document.getElementById('score').textContent='0';
+  document.getElementById('level').textContent='1';
+  document.getElementById('lines').textContent='0';
+  gameOver=false; nextType=randType(); spawnPiece();
+  overlay.style.display='none'; running=true; lastTime=0;
+  cancelAnimationFrame(animId); animId=requestAnimationFrame(update);
+}
+
+// Keyboard
+document.addEventListener('keydown',e=>{
+  if(e.key==='r'||e.key==='R'){ startGame(); return; }
+  if(!running) return;
+  if(e.key==='ArrowLeft'){ if(!collides(pieceX-1,pieceY)){pieceX--;draw();} }
+  else if(e.key==='ArrowRight'){ if(!collides(pieceX+1,pieceY)){pieceX++;draw();} }
+  else if(e.key==='ArrowDown'){ dropCounter=dropInterval; }
+  else if(e.key==='ArrowUp'){
+    const rot=rotate(piece); let kick=0;
+    if(collides(pieceX,pieceY,rot)){kick=pieceX>COLS/2?-1:1;if(collides(pieceX+kick,pieceY,rot))kick=0;}
+    if(!collides(pieceX+kick,pieceY,rot)){piece=rot;pieceX+=kick;draw();}
+  }
+  else if(e.key===' '){e.preventDefault();while(!collides(pieceX,pieceY+1))pieceY++;lock();draw();}
+});
+
+// Swipe on canvas
+let tx=0,ty=0,tt=0;
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  tx=e.touches[0].clientX; ty=e.touches[0].clientY; tt=Date.now();
+},{passive:false});
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(!running) return;
+  const dx=e.changedTouches[0].clientX-tx;
+  const dy=e.changedTouches[0].clientY-ty;
+  const dt=Date.now()-tt;
+  const absDx=Math.abs(dx),absDy=Math.abs(dy);
+  if(absDx<12&&absDy<12&&dt<250){
+    const rot=rotate(piece); let kick=0;
+    if(collides(pieceX,pieceY,rot)){kick=pieceX>COLS/2?-1:1;if(collides(pieceX+kick,pieceY,rot))kick=0;}
+    if(!collides(pieceX+kick,pieceY,rot)){piece=rot;pieceX+=kick;draw();}
+  } else if(absDx>absDy){
+    const steps=Math.max(1,Math.round(absDx/(SZ*1.2)));
+    for(let i=0;i<steps;i++){
+      if(dx>0){if(!collides(pieceX+1,pieceY))pieceX++;}
+      else{if(!collides(pieceX-1,pieceY))pieceX--;}
+    }
+    draw();
+  } else if(dy>50){
+    while(!collides(pieceX,pieceY+1))pieceY++;
+    lock();draw();
+  }
+},{passive:false});
+
+// Touch buttons
+function addBtn(id,fn){
+  const el=document.getElementById(id);
+  if(!el) return;
+  let interval=null;
+  el.addEventListener('touchstart',e=>{
+    e.preventDefault();
+    if(running) fn();
+    if(id==='btn-left'||id==='btn-right'){
+      interval=setInterval(()=>{ if(running) fn(); },120);
+    }
+  },{passive:false});
+  el.addEventListener('touchend',e=>{
+    e.preventDefault();
+    if(interval){ clearInterval(interval); interval=null; }
+  },{passive:false});
+  el.addEventListener('click',()=>{ if(running) fn(); });
+}
+
+addBtn('btn-left',()=>{ if(!collides(pieceX-1,pieceY)){pieceX--;draw();} });
+addBtn('btn-right',()=>{ if(!collides(pieceX+1,pieceY)){pieceX++;draw();} });
+addBtn('btn-rotate',()=>{
+  const rot=rotate(piece); let kick=0;
+  if(collides(pieceX,pieceY,rot)){kick=pieceX>COLS/2?-1:1;if(collides(pieceX+kick,pieceY,rot))kick=0;}
+  if(!collides(pieceX+kick,pieceY,rot)){piece=rot;pieceX+=kick;draw();}
+});
+addBtn('btn-down',()=>{ dropCounter=dropInterval; });
+addBtn('btn-drop',()=>{ while(!collides(pieceX,pieceY+1))pieceY++;lock();draw(); });
+
+window.addEventListener('resize',()=>{ if(running) startGame(); else calcSize(); });
+calcSize(); draw();
+</script>
+</body>
+</html>
